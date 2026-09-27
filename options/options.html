@@ -10,7 +10,8 @@
   h1 { font-size:20px; }
   .card { background:var(--card); border-radius:12px; padding:16px; margin-bottom:12px; }
   label { display:block; font-size:13px; margin:10px 0 4px; }
-  input, select { width:100%; padding:10px; border-radius:8px; border:1px solid #334155; background:#0b1220; color:var(--fg); font-size:13px; }
+  input, select, textarea { width:100%; padding:10px; border-radius:8px; border:1px solid #334155; background:#0b1220; color:var(--fg); font-size:13px; }
+  textarea { min-height:110px; font-family:monospace; direction:ltr; text-align:left; resize:vertical; }
   button { padding:10px 16px; border:0; border-radius:8px; cursor:pointer; font-size:13px; margin-top:12px; }
   .primary { background:var(--accent); color:#0f172a; font-weight:700; }
   .danger { background:transparent; color:var(--err); border:1px solid var(--err); }
@@ -25,12 +26,20 @@
 <h1>⚙️ تنظیمات نصیر VPN</h1>
 
 <div class="card">
-  <label for="subUrl">لینک سابسکریپشن (ماسک‌شده نمایش داده می‌شود)</label>
+  <label for="subUrl">لینک سابسکریپشن اصلی (ماسک‌شده)</label>
   <input id="subUrl" type="password" placeholder="https://example.com/sub" autocomplete="off">
   <div class="row">
     <button id="btn-reveal" class="ghost">نمایش لینک</button>
     <button id="btn-clear-url" class="danger">حذف لینک</button>
   </div>
+
+  <label for="subUrlMirror">لینک Mirror (اختیاری — raw.githubusercontent.com)</label>
+  <input id="subUrlMirror" type="password" placeholder="https://raw.githubusercontent.com/..." autocomplete="off">
+  <div class="row">
+    <button id="btn-reveal-mirror" class="ghost">نمایش لینک</button>
+    <button id="btn-clear-mirror" class="danger">حذف mirror</button>
+  </div>
+
   <label for="format">فرمت</label>
   <select id="format">
     <option value="auto">تشخیص خودکار</option>
@@ -47,10 +56,17 @@
 </div>
 
 <div class="card">
+  <strong>ورود دستی سابسکریپشن</strong>
+  <p class="hint">اگر سرور با User-Agent مرورگر، صفحهٔ HTML برگرداند، محتوای ساب (Base64/URI/Clash/JSON) را اینجا بچسبانید.</p>
+  <textarea id="manualText" placeholder="vless://... یا محتوای Base64 یا YAML یا JSON"></textarea>
+  <button id="btn-import" class="primary">پردازش و ذخیره</button>
+</div>
+
+<div class="card">
   <strong>حریم خصوصی</strong>
   <p class="hint">
-    • لینک سابسکریپشن (شامل توکن) ماسک‌شده نمایش داده می‌شود و فقط با «نمایش لینک» کامل دیده می‌شود.<br>
-    • «حذف لینک» آن را فوراً و امن از حافظهٔ افزونه پاک می‌کند.<br>
+    • لینک‌های سابسکریپشن (شامل توکن) ماسک‌شده نمایش داده می‌شوند و فقط با «نمایش لینک» کامل دیده می‌شوند.<br>
+    • «حذف لینک» و «حذف mirror» کلید مربوطه را فوراً و امن از حافظهٔ افزونه پاک می‌کنند.<br>
     • توکن/اعتبارنامه‌ها در لاگ یا رابط نمایش داده نمی‌شوند.
   </p>
 </div>
