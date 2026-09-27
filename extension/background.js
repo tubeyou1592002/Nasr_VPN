@@ -34,7 +34,6 @@ chrome.runtime.onStartup.addListener(()=>{
 // ==============================
 // Proxy helpers
 // ==============================
-/*
 function setProxy(){
 
     chrome.proxy.settings.set(
@@ -47,7 +46,11 @@ function setProxy(){
                         scheme:"http",
                         host:"127.0.0.1",
                         port:2080
-                    }
+                    },
+                    bypassList:[
+                        "localhost",
+                        "127.0.0.1"
+                    ]
                 }
             },
 
@@ -57,18 +60,22 @@ function setProxy(){
 
         () => {
 
+            if (chrome.runtime.lastError) {
+                console.log(
+                    "Proxy error:",
+                    chrome.runtime.lastError.name
+                );
+                return;
+            }
+
             console.log(
-                "PROXY RESULT:",
-                chrome.runtime.lastError
-                    ? chrome.runtime.lastError.message
-                    : "SUCCESS"
+                "PROXY RESULT: SUCCESS"
             );
 
         }
     );
 
 }
-    */
 
 
 
@@ -161,8 +168,8 @@ async function checkVPN(){
     catch(error){
 
         console.log(
-            "Monitor error",
-            error
+            "Monitor error:",
+            error.name
         );
 
     }
@@ -232,15 +239,14 @@ async function autoReconnect(){
 
             });
             
-
         }
 
     }
     catch(error){
 
         console.log(
-            "Reconnect failed",
-            error
+            "Reconnect failed:",
+            error.name
         );
 
     }
@@ -323,6 +329,7 @@ chrome.runtime.onMessage.addListener(
 
                             error:
                             chrome.runtime.lastError.message
+
 
                         });
 
