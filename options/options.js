@@ -11,13 +11,14 @@ function maskUrl(url) {
   }
 }
 
-/** اعتبارسنجی سمت کاربر پیش از ارسال به background */
+/** اعتبارسنجی سمت کاربر پیش از ارسال به background (باگ C: URL تکی حتی با پورت صریح) */
 function validateManualInput(text) {
   const t = String(text || '').trim();
   if (!t) return { error: 'محتوای ورودی خالی است' };
   if (/^\s*<(!doctype|html)/i.test(t)) {
     return { error: 'محتوای ورودی HTML است، نه سابسکریپشن. متن Base64/URI/Clash/JSON را وارد کنید.', type: 'HTML_RESPONSE' };
   }
+  // تک‌خطی + شروع با http/https → همیشه URL است، حتی با port صریح (باگ C)
   if (!t.includes('\n') && t.length < 2000 && /^https?:\/\//i.test(t)) {
     return { error: 'این یک URL است، نه محتوای سابسکریپشن — محتوای Base64 یا متن کانفیگ‌ها را پیست کنید.', type: 'MANUAL_IS_URL' };
   }
@@ -35,10 +36,64 @@ async function load() {
     $('refresh').value = r.refreshIntervalMin || 60;
     $('timeout').value = r.fetchTimeoutSec || 10;
     $('format').value = r.format || 'auto';
+    if (r.localCore) {
+      $('localCoreHost').value = r.localCore.host;
+      $('localCorePort').value = r.localCore.port;
+      $('localCoreScheme').value = r.localCore.scheme;
+    }
+    renderLocalCoreStatus(r.localCoreConnected);
     renderUrlField();
     renderMirrorField();
   }
 }
+
+// ── هستهٔ محلی ─────────────────────────────────────────────────
+
+function renderLocalCoreStatus(connected, busy) {
+  const el = $('localCoreStatus');
+  el.classList.remove('on', 'off', 'busy');
+  if (busy) {
+    el.classList.add('busy');
+    el.textContent = 'در حال اتصال…';
+  } else if (connected) {
+    el.classList.add('on');
+    el.textContent = 'متصل';
+  } else {
+    el.classList.add('off');
+    el.textContent = 'قطع';
+  }
+}
+
+$('btn-local-connect').addEventListener('click', async () => {
+  $('localCoreError').textContent = '';
+  const host = $('localCoreHost').value.trim();
+  const port = Number($('localCorePort').value);
+  const scheme = $('localCoreScheme').value;
+  renderLocalCoreStatus(false, true);
+  const r = await new Promise(res => chrome.runtime.sendMessage({
+    type: 'APPLY_LOCAL_CORE',
+    payload: { host, port, scheme }
+  }, res));
+  if (r && r.ok) {
+    renderLocalCoreStatus(true);
+    $('settingsError').textContent = '';
+  } else {
+    renderLocalCoreStatus(false);
+    $('localCoreError').textContent = (r && r.error) || 'خطای نامشخص';
+  }
+});
+
+$('btn-local-disconnect').addEventListener('click', async () => {
+  $('localCoreError').textContent = '';
+  const r = await new Promise(res => chrome.runtime.sendMessage({ type: 'DISABLE_LOCAL_CORE' }, res));
+  if (r && r.ok) {
+    renderLocalCoreStatus(false);
+  } else {
+    $('localCoreError').textContent = (r && r.error) || 'خطای نامشخص';
+  }
+});
+
+// ── سابسکریپشن ─────────────────────────────────────────────────
 
 function renderUrlField() {
   const input = $('subUrl');
@@ -78,16 +133,17 @@ $('btn-clear-url').addEventListener('click', async () => {
   savedUrl = ''; revealed = false;
   await chrome.storage.local.remove('subscriptionUrl');
   renderUrlField();
-  $('msg').textContent = 'لینک حذف شد';
-  $('msg').style.color = 'var(--ok)';
+  $('settingsError').textContent = '';
+  $('settingsError').style.color = 'var(--ok)';
+  $('settingsError').textContent = 'لینک حذف شد';
 });
 
 $('btn-clear-mirror').addEventListener('click', async () => {
   savedMirror = ''; revealedMirror = false;
   await chrome.storage.local.remove('subscriptionUrlMirror');
   renderMirrorField();
-  $('msg').textContent = 'لینک mirror حذف شد';
-  $('msg').style.color = 'var(--ok)';
+  $('settingsError').textContent = 'لینک mirror حذف شد';
+  $('settingsError').style.color = 'var(--ok)';
 });
 
 $('save').addEventListener('click', async () => {
@@ -107,30 +163,34 @@ $('save').addEventListener('click', async () => {
     savedUrl = url; savedMirror = mirror;
     revealed = false; revealedMirror = false;
     renderUrlField(); renderMirrorField();
-    $('msg').textContent = 'ذخیره شد';
-    $('msg').style.color = 'var(--ok)';
+    $('settingsError').textContent = 'ذخیره شد';
+    $('settingsError').style.color = 'var(--ok)';
   } else {
-    $('msg').textContent = 'خطا: ' + (r && r.error || 'نامشخص');
-    $('msg').style.color = 'var(--err)';
+    $('settingsError').textContent = 'خطا: ' + (r && r.error || 'نامشخص');
+    $('settingsError').style.color = 'var(--err)';
   }
 });
 
+// ── ورود دستی (باگ A: خطا زیر textarea؛ باگ B: پاک‌کردن textarea) ──
+
 $('btn-import').addEventListener('click', async () => {
   const text = $('manualText').value;
-  // اعتبارسنجی سریع سمت کاربر (قبل از رفت‌وبرگشت به background)
+  $('manualError').textContent = '';
+  // اعتبارسنجی سریع سمت کاربر
   const v = validateManualInput(text);
   if (v) {
-    $('msg').textContent = 'خطا: ' + v.error;
-    $('msg').style.color = 'var(--err)';
+    $('manualError').textContent = 'خطا: ' + v.error;
     return;
   }
   const r = await new Promise(res => chrome.runtime.sendMessage({ type: 'IMPORT_MANUAL', text }, res));
   if (r && r.ok) {
-    $('msg').textContent = `ورود دستی موفق: ${r.count} سرور ذخیره شد`;
-    $('msg').style.color = 'var(--ok)';
+    $('manualError').style.color = 'var(--ok)';
+    $('manualError').textContent = `ورود دستی موفق: ${r.count} سرور ذخیره شد`;
+    // باگ B: پاک‌کردن محتوای حساس از UI
+    $('manualText').value = '';
   } else {
-    $('msg').textContent = 'خطا: ' + (r && r.error || 'نامشخص');
-    $('msg').style.color = 'var(--err)';
+    $('manualError').style.color = 'var(--err)';
+    $('manualError').textContent = 'خطا: ' + (r && r.error || 'نامشخص');
   }
 });
 
