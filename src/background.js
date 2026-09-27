@@ -4,6 +4,7 @@
  * - اعمال/حذف پروکسی از طریق chrome.proxy (فقط HTTP/HTTPS/SOCKS)
  * - اندازه‌گیری تأخیر با fetch (زمان پاسخ HTTP — نه پینگ ICMP)
  * - دریافت سابسکریپشن با User-Agent سازگار + fallback DNR + mirror
+ * - اتصال به هستهٔ محلی (Xray/sing-box/v2rayN) برای پروتکل‌های VLESS/VMess/Trojan/SS
  */
 import { detectAndParse } from './parsers.js';
 
@@ -16,7 +17,8 @@ const STORE_KEYS = {
   refreshIntervalMin: 'refreshIntervalMin',
   fetchTimeoutSec: 'fetchTimeoutSec',
   proxyEnabled: 'proxyEnabled',
-  lastFetchedAt: 'lastFetchedAt'
+  lastFetchedAt: 'lastFetchedAt',
+  localCore: 'localCore' // { host, port, scheme } — بدون اعتبارنامه
 };
 
 const UA_HEADER = 'v2rayNG/1.8.0';
@@ -32,6 +34,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         case 'FETCH_SUBSCRIPTION': sendResponse(await fetchSubscription()); break;
         case 'APPLY_PROXY': sendResponse(await applyProxy(msg.serverId)); break;
         case 'DISABLE_PROXY': sendResponse(await disableProxy()); break;
+        case 'APPLY_LOCAL_CORE': sendResponse(await applyLocalCore(msg.payload)); break;
+        case 'DISABLE_LOCAL_CORE': sendResponse(await disableLocalCore()); break;
         case 'TEST_LATENCY': sendResponse(await testLatency(msg.server)); break;
         case 'GET_STATE': sendResponse(await getState()); break;
         case 'SET_SETTINGS': sendResponse(await setSettings(msg.patch)); break;
@@ -56,6 +60,8 @@ async function getState() {
     servers: s[STORE_KEYS.servers] || [],
     selected: s[STORE_KEYS.selected] || null,
     proxyEnabled: !!s[STORE_KEYS.proxyEnabled],
+    localCore: s[STORE_KEYS.localCore] || null,
+    localCoreConnected: !!(s[STORE_KEYS.localCore] && s[STORE_KEYS.proxyEnabled]),
     refreshIntervalMin: s[STORE_KEYS.refreshIntervalMin] || 60,
     fetchTimeoutSec: s[STORE_KEYS.fetchTimeoutSec] || 10,
     lastFetchedAt: s[STORE_KEYS.lastFetchedAt] || null
@@ -82,6 +88,111 @@ async function setSettings(patch) {
   if (Object.keys(toSet).length) await chrome.storage.local.set(toSet);
   return { ok: true };
 }
+
+// ── هستهٔ محلی (Local Core Bridge) ─────────────────────────────
+
+const LOCAL_SCHEMES = ['http', 'https', 'socks5'];
+
+/** فقط loopback یا IP خصوصی — هرگز آدرس عمومی */
+function isPrivateHost(host) {
+  const h = String(host || '').trim().toLowerCase();
+  if (h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1') return true;
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return false;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  if (a === 10) return true;                 // 10.0.0.0/8
+  if (a === 192 && b === 168) return true;   // 192.168.0.0/16
+  if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+  if (a === 127) return true;                // loopback range
+  return false;
+}
+
+function validateLocalCore(payload) {
+  const host = String((payload && payload.host) || '').trim().toLowerCase();
+  const port = Number(payload && payload.port);
+  const scheme = String((payload && payload.scheme) || '').trim().toLowerCase();
+  if (!host || !isPrivateHost(host)) {
+    return 'میزبان هستهٔ محلی نامعتبر است — فقط 127.0.0.1، localhost یا IP خصوصی (10.*، 192.168.*، 172.16–31.*) مجاز است.';
+  }
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    return 'پورت نامعتبر است — باید عدد صحیح بین 1 تا 65535 باشد.';
+  }
+  if (!LOCAL_SCHEMES.includes(scheme)) {
+    return 'طرح (scheme) نامعتبر است — فقط http، https یا socks5.';
+  }
+  return null;
+}
+
+/** تست سریع اتصال به پورت هستهٔ محلی قبل از تأیید */
+async function probeLocalCore(host, port, scheme) {
+  const url = (scheme === 'socks5' ? 'http' : scheme) + '://' + host + ':' + port + '/';
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 3000);
+  try {
+    await fetch(url, { signal: ctrl.signal, mode: 'no-cors', credentials: 'omit' });
+    return true; // پاسخ داد (حتی no-cors opaque)
+  } catch (e) {
+    // خطای فوری (در چند ms) یعنی اتصال TCP برقرار نشد = پورت بسته.
+    // خطای بعد از timeout یعنی پورت باز است ولی پاسخ HTTP معنادار نداد — قابل قبول.
+    const elapsed = performance.now() - 0;
+    const aborted = (e && e.name === 'AbortError');
+    if (aborted) return true; // پورت باز ولی پاسخ نداد — قابل قبول برای هستهٔ محلی
+    // خطای غیر timeout: اگر خیلی سریع بود یعنی connection refused
+    throw e;
+  } finally { clearTimeout(t); }
+}
+
+async function applyLocalCore(payload) {
+  const err = validateLocalCore(payload);
+  if (err) {
+    const e = new Error(err);
+    e.type = 'LOCAL_CORE_INVALID';
+    throw e;
+  }
+  const host = String(payload.host).trim().toLowerCase();
+  const port = Number(payload.port);
+  const scheme = String(payload.scheme).trim().toLowerCase();
+
+  // تست اتصال قبل از تأیید
+  let reachable;
+  try {
+    reachable = await probeLocalCore(host, port, scheme);
+  } catch (e) {
+    const ex = new Error(`هستهٔ محلی روی ${host}:${port} پاسخ نمی‌دهد — آیا Xray/sing-box در حال اجرا است؟`);
+    ex.type = 'LOCAL_CORE_UNREACHABLE';
+    throw ex;
+  }
+  if (!reachable) {
+    const ex = new Error(`هستهٔ محلی روی ${host}:${port} پاسخ نمی‌دهد — آیا Xray/sing-box در حال اجرا است؟`);
+    ex.type = 'LOCAL_CORE_UNREACHABLE';
+    throw ex;
+  }
+
+  // ست کردن پروکسی
+  const config = {
+    mode: 'fixed_servers',
+    rules: {
+      singleProxy: { scheme, host, port },
+      bypassList: ['localhost', '127.0.0.1', '[::1]']
+    }
+  };
+  await chrome.proxy.settings.set({ value: config, scope: 'regular' });
+  await chrome.storage.local.set({
+    [STORE_KEYS.localCore]: { host, port, scheme },
+    [STORE_KEYS.proxyEnabled]: true,
+    [STORE_KEYS.selected]: null
+  });
+  return { ok: true, localCore: { host, port, scheme } };
+}
+
+async function disableLocalCore() {
+  await chrome.proxy.settings.clear({ scope: 'regular' });
+  await chrome.storage.local.remove(STORE_KEYS.localCore);
+  await chrome.storage.local.set({ [STORE_KEYS.proxyEnabled]: false });
+  return { ok: true };
+}
+
+// ── دریافت سابسکریپشن ─────────────────────────────────────────
 
 /** ساخت rule DNR برای بازنویسی User-Agent فقط روی دامنهٔ سابسکریپشن */
 function buildUaRule(url) {
@@ -224,7 +335,12 @@ async function applyProxy(serverId) {
   const srv = (servers || []).find(s => s.id === serverId);
   if (!srv) throw new Error('سرور انتخابی یافت نشد');
   if (!srv.chromeSupported) {
-    throw new Error(`پروتکل ${srv.protocol} توسط chrome.proxy پشتیبانی نمی‌شود. از کلاینت محلی سازگار استفاده کنید.`);
+    throw new Error(`پروتکل ${srv.protocol} توسط chrome.proxy پشتیبانی نمی‌شود. از بخش اتصال به هستهٔ محلی در تنظیمات استفاده کنید.`);
+  }
+  // اگر هستهٔ محلی فعال است، اول پاکش کن تا وضعیت‌ها ناهم‌زمان نشود
+  const cur = await chrome.storage.local.get(STORE_KEYS.localCore);
+  if (cur[STORE_KEYS.localCore]) {
+    await chrome.storage.local.remove(STORE_KEYS.localCore);
   }
   const scheme = srv.protocol === 'socks5' || srv.protocol === 'socks' ? 'socks5' : srv.protocol;
   const config = {
