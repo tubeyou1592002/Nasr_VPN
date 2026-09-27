@@ -8,6 +8,21 @@ export function detectAndParse(text) {
   const t = (text || '').trim();
   if (!t) throw new Error('محتوای سابسکریپشن خالی است');
 
+  // گارد: ورودی HTML (صفحهٔ وب، نه سابسکریپشن)
+  if (/^\s*<(!doctype|html)/i.test(t)) {
+    const err = new Error('این یک صفحهٔ HTML است، نه محتوای سابسکریپشن — محتوای Base64 یا متن کانفیگ‌ها را پیست کنید.');
+    err.type = 'HTML_RESPONSE';
+    throw err;
+  }
+
+  // گارد: یک URL تکی (کاربر لینک ساب را به‌جای محتوای آن پیست کرده)
+  const singleLine = !t.includes('\n');
+  if (singleLine && t.length < 2000 && /^https?:\/\//i.test(t)) {
+    const err = new Error('این یک URL است، نه محتوای سابسکریپشن — محتوای Base64 یا متن کانفیگ‌ها را پیست کنید.');
+    err.type = 'MANUAL_IS_URL';
+    throw err;
+  }
+
   // 1) تلاش برای Base64
   const decoded = tryBase64Decode(t);
   if (decoded && /:\/\//.test(decoded)) {
@@ -31,8 +46,7 @@ export function detectAndParse(text) {
   const clash = parseClashProxies(t);
   if (clash.length) return clash;
 
-  throw new Error('فرمت سابسکریپشن شناسایی نشد (پشتیبانی: Base64، URI، Clash، sing-box)'
-    + (jsonParseErr && jsonParseErr.type === 'JSON_PARSE' ? '' : ''));
+  throw new Error('فرمت سابسکریپشن شناسایی نشد (پشتیبانی: Base64، URI، Clash، sing-box)');
 }
 
 function tryBase64Decode(s) {
@@ -50,9 +64,20 @@ const PROXY_IN_CHROME = new Set(['http', 'https', 'socks4', 'socks5']);
 const KNOWN = new Set(['vmess', 'vless', 'trojan', 'ss', 'socks', 'socks4', 'socks5', 'http', 'https', 'hysteria', 'hysteria2', 'tuic', 'wireguard']);
 
 function parseUriList(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const isMultiLine = lines.length > 1;
   const out = [];
-  for (const line of text.split('\n').map(l => l.trim()).filter(Boolean)) {
-    try { out.push(parseUri(line)); } catch (_) { /* skip bad line */ }
+  for (const line of lines) {
+    try {
+      const srv = parseUri(line);
+      // گارد: ورودی‌های http/https فقط وقتی سرور معتبرند که در یک لیست چندخطی
+      // باشند و port صریح در URL ذکر شده باشد — نه یک URL تکی (لینک ساب).
+      if (srv.protocol === 'http' || srv.protocol === 'https') {
+        const hasExplicitPort = /:\/\/[^/\s#]+:\d+/.test(line.split('#')[0]);
+        if (!isMultiLine || !hasExplicitPort) continue;
+      }
+      out.push(srv);
+    } catch (_) { /* skip bad line */ }
   }
   if (!out.length) throw new Error('هیچ سرور معتبری در سابسکریپشن یافت نشد');
   return out;
