@@ -18,16 +18,21 @@ export function detectAndParse(text) {
     return parseUriList(t);
   }
   // 3) JSON (sing-box / v2ray config)
+  let jsonParseErr = null;
   try {
     const j = JSON.parse(t);
     const out = parseSingBox(j) || parseV2rayConfig(j);
     if (out && out.length) return out;
-  } catch (_) { /* not JSON */ }
+    jsonParseErr = new Error('JSON معتبر است ولی سرور قابل استخراجی در آن یافت نشد (فرمت sing-box/V2Ray پشتیبانی‌شده نیست)');
+  } catch (e) {
+    jsonParseErr = e; // not JSON — fallback to Clash
+  }
   // 4) Clash YAML (تحلیل خطی ساده‌ی proxies)
   const clash = parseClashProxies(t);
   if (clash.length) return clash;
 
-  throw new Error('فرمت سابسکریپشن شناسایی نشد (پشتیبانی: Base64، URI، Clash، sing-box)');
+  throw new Error('فرمت سابسکریپشن شناسایی نشد (پشتیبانی: Base64، URI، Clash، sing-box)'
+    + (jsonParseErr && jsonParseErr.type === 'JSON_PARSE' ? '' : ''));
 }
 
 function tryBase64Decode(s) {
@@ -98,8 +103,20 @@ function parseUri(line) {
 function parseVmess(line) {
   // vmess://base64(json)
   const json = tryBase64Decode(line.slice(8));
-  if (!json) throw new Error('vmess نامعتبر');
-  const o = JSON.parse(json);
+  if (!json) {
+    const err = new Error('پیکربندی VMess نامعتبر: بدنهٔ Base64 قابل رمزگشایی نیست');
+    err.type = 'VMESS_INVALID';
+    throw err;
+  }
+  let o;
+  try {
+    o = JSON.parse(json);
+  } catch (e) {
+    console.debug('VMess payload JSON parse failed (details suppressed from UI/storage)', e && e.message);
+    const err = new Error('پیکربندی VMess نامعتبر: بدنهٔ Base64 حاوی JSON معتبر نیست');
+    err.type = 'VMESS_INVALID';
+    throw err;
+  }
   return {
     protocol: 'vmess',
     host: String(o.add || ''),
