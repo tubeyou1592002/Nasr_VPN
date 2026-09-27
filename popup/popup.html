@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --fg:#e2e8f0; --accent:#38bdf8; --ok:#4ade80; --err:#f87171; --muted:#94a3b8; }
+  * { box-sizing: border-box; font-family: Vazirmatn, Tahoma, sans-serif; }
+  body { margin:0; width:360px; background:var(--bg); color:var(--fg); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--card); }
+  h1 { font-size:15px; margin:0; }
+  main { padding:12px 16px; }
+  .status { font-size:12px; margin-bottom:10px; }
+  .status.on { color:var(--ok); } .status.off { color:var(--muted); }
+  button { width:100%; padding:10px; margin:4px 0; border:0; border-radius:8px; cursor:pointer; font-size:13px; }
+  .primary { background:var(--accent); color:#0f172a; font-weight:700; }
+  .danger { background:transparent; color:var(--err); border:1px solid var(--err); }
+  .ghost { background:var(--card); color:var(--fg); }
+  ul#servers { list-style:none; margin:8px 0 0; padding:0; max-height:220px; overflow-y:auto; }
+  ul#servers li { background:var(--card); border-radius:8px; padding:8px 10px; margin-bottom:6px; cursor:pointer; font-size:12px; }
+  ul#servers li.active { outline:2px solid var(--accent); }
+  ul#servers li .meta { color:var(--muted); display:block; margin-top:2px; }
+  .badge { display:inline-block; padding:1px 6px; border-radius:6px; font-size:10px; background:#334155; margin-inline-start:4px; }
+  .badge.na { color:var(--err); }
+  #err { color:var(--err); font-size:11px; min-height:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ نصیر VPN</h1>
+  <button id="btn-refresh" class="ghost" style="width:auto;padding:6px 10px;">به‌روزرسانی</button>
+</header>
+<main>
+  <div id="proxy-status" class="status off">پروکسی: خاموش</div>
+  <div id="err"></div>
+  <button id="btn-toggle" class="primary">فعال‌سازی پروکسی</button>
+  <button id="btn-test" class="ghost">تست تأخیر همهٔ سرورها</button>
+  <ul id="servers"></ul>
+  <button id="btn-options" class="ghost">تنظیمات (لینک سابسکریپشن)</button>
+  <button id="btn-wipe" class="danger">پاک‌سازی کامل داده‌ها</button>
+</main>
+<script src="popup.js"></script>
+</body>
+</html>
