@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>تنظیمات نصیر VPN</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --fg:#e2e8f0; --accent:#38bdf8; --ok:#4ade80; --err:#f87171; --muted:#94a3b8; }
+  * { box-sizing:border-box; font-family:Vazirmatn, Tahoma, sans-serif; }
+  body { background:var(--bg); color:var(--fg); margin:0; padding:24px; max-width:640px; margin-inline:auto; }
+  h1 { font-size:20px; }
+  .card { background:var(--card); border-radius:12px; padding:16px; margin-bottom:12px; }
+  label { display:block; font-size:13px; margin:10px 0 4px; }
+  input, select { width:100%; padding:10px; border-radius:8px; border:1px solid #334155; background:#0b1220; color:var(--fg); font-size:13px; }
+  button { padding:10px 16px; border:0; border-radius:8px; cursor:pointer; font-size:13px; margin-top:12px; }
+  .primary { background:var(--accent); color:#0f172a; font-weight:700; }
+  .danger { background:transparent; color:var(--err); border:1px solid var(--err); }
+  #msg { font-size:12px; margin-top:8px; min-height:16px; }
+  .hint { color:var(--muted); font-size:11px; line-height:1.8; }
+</style>
+</head>
+<body>
+<h1>⚙️ تنظیمات نصیر VPN</h1>
+
+<div class="card">
+  <label for="subUrl">لینک سابسکریپشن</label>
+  <input id="subUrl" type="url" placeholder="https://example.com/sub">
+  <label for="format">فرمت</label>
+  <select id="format">
+    <option value="auto">تشخیص خودکار</option>
+    <option value="base64">Base64 / URI</option>
+    <option value="clash">Clash Meta</option>
+    <option value="singbox">sing-box</option>
+  </select>
+  <label for="refresh">فاصلهٔ به‌روزرسانی (دقیقه، حداقل ۵)</label>
+  <input id="refresh" type="number" min="5" value="60">
+  <label for="timeout">مهلت دریافت (ثانیه)</label>
+  <input id="timeout" type="number" min="3" max="60" value="10">
+  <button id="save" class="primary">ذخیره</button>
+  <div id="msg"></div>
+</div>
+
+<div class="card">
+  <strong>محدودیت‌های فنی</strong>
+  <p class="hint">
+    • <code>chrome.proxy</code> فقط پروتکل‌های HTTP/HTTPS/SOCKS4/SOCKS5 را پشتیبانی می‌کند.<br>
+    • سرورهای VLESS/VMess/Trojan/Shadowsocks فقط شناسایی و ذخیره می‌شوند؛ برای اتصال به آن‌ها به کلاینت محلی سازگار (مانند هستهٔ v2ray/sing-box) نیاز دارید.<br>
+    • «تأخیر» نمایش‌داده‌شده زمان پاسخ HTTP است و معادل پینگ ICMP نیست.<br>
+    • اعتبارنامهٔ پروکسی با احراز هویت در این نسخه پشتیبانی نمی‌شود.
+  </p>
+</div>
+
+<script src="options.js"></script>
+</body>
+</html>
