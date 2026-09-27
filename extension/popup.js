@@ -164,10 +164,14 @@ async function loadSettings(){
 
 async function saveSettings(){
 
+    const subscription =
+        subscriptionInput.value.trim();
+
+
     await chrome.storage.local.set({
 
         subscription:
-            subscriptionInput.value.trim(),
+            subscription,
 
 
         autoReconnect:
@@ -190,6 +194,14 @@ async function saveSettings(){
 
     },2000);
 
+
+    if(!subscription){
+
+        return;
+
+    }
+
+
     await fetch(
     `${API}/api/subscription`,
     {
@@ -207,8 +219,6 @@ async function saveSettings(){
 );
 
 }
-const subscription =
-    subscriptionInput.value.trim();
 
 
 
