@@ -40,7 +40,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         default: sendResponse({ ok: false, error: 'پیام ناشناخته' });
       }
     } catch (e) {
-      sendResponse({ ok: false, error: String(e && e.message || e) });
+      sendResponse({ ok: false, error: String(e && e.message || e), errorType: e && e.type });
     }
   })();
   return true; // async sendResponse
@@ -142,6 +142,12 @@ function looksLikeHtml(text) {
   return /^\s*<(!doctype|html)/i.test(text);
 }
 
+/** تشخیص URL تکی (که به‌اشتباه در ورود دستی پیست می‌شود) */
+function looksLikeBareUrl(text) {
+  const t = text.trim();
+  return !t.includes('\n') && t.length < 2000 && /^https?:\/\//i.test(t);
+}
+
 async function fetchOne(url, timeoutSec) {
   // گام ۱: هدر UA مستقیم
   let res;
@@ -191,12 +197,19 @@ async function fetchSubscription() {
   throw lastErr || new Error('دریافت سابسکریپشن ناموفق بود');
 }
 
-/** ورود دستی محتوای سابسکریپشن */
+/** ورود دستی محتوای سابسکریپشن (با گاردهای URL تکی و HTML) */
 async function importManual(text) {
   const t = String(text || '').trim();
   if (!t) throw new Error('محتوای ورودی خالی است');
   if (looksLikeHtml(t)) {
-    throw new Error('محتوای ورودی HTML است، نه سابسکریپشن. متن Base64/URI/Clash/JSON را وارد کنید.');
+    const err = new Error('محتوای ورودی HTML است، نه سابسکریپشن. متن Base64/URI/Clash/JSON را وارد کنید.');
+    err.type = 'HTML_RESPONSE';
+    throw err;
+  }
+  if (looksLikeBareUrl(t)) {
+    const err = new Error('این یک URL است، نه محتوای سابسکریپشن — محتوای Base64 یا متن کانفیگ‌ها را پیست کنید.');
+    err.type = 'MANUAL_IS_URL';
+    throw err;
   }
   const servers = detectAndParse(t);
   await chrome.storage.local.set({
