@@ -3,11 +3,13 @@
  * - ذخیرهٔ تنظیمات در chrome.storage.local
  * - اعمال/حذف پروکسی از طریق chrome.proxy (فقط HTTP/HTTPS/SOCKS)
  * - اندازه‌گیری تأخیر با fetch (زمان پاسخ HTTP — نه پینگ ICMP)
+ * - دریافت سابسکریپشن با User-Agent سازگار + fallback DNR + mirror
  */
 import { detectAndParse } from './parsers.js';
 
 const STORE_KEYS = {
   subUrl: 'subscriptionUrl',
+  subUrlMirror: 'subscriptionUrlMirror',
   subFormat: 'subscriptionFormat', // auto | base64 | uri | clash | singbox
   servers: 'servers',
   selected: 'selectedServerId',
@@ -16,6 +18,8 @@ const STORE_KEYS = {
   proxyEnabled: 'proxyEnabled',
   lastFetchedAt: 'lastFetchedAt'
 };
+
+const UA_HEADER = 'v2rayNG/1.8.0';
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create('nasr-refresh', { periodInMinutes: 60 });
@@ -32,6 +36,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         case 'GET_STATE': sendResponse(await getState()); break;
         case 'SET_SETTINGS': sendResponse(await setSettings(msg.patch)); break;
         case 'WIPE_DATA': sendResponse(await wipeData()); break;
+        case 'IMPORT_MANUAL': sendResponse(await importManual(msg.text)); break;
         default: sendResponse({ ok: false, error: 'پیام ناشناخته' });
       }
     } catch (e) {
@@ -46,6 +51,7 @@ async function getState() {
   return {
     ok: true,
     subscriptionUrl: s[STORE_KEYS.subUrl] || '',
+    subscriptionUrlMirror: s[STORE_KEYS.subUrlMirror] || '',
     format: s[STORE_KEYS.subFormat] || 'auto',
     servers: s[STORE_KEYS.servers] || [],
     selected: s[STORE_KEYS.selected] || null,
@@ -59,6 +65,7 @@ async function getState() {
 async function setSettings(patch) {
   const map = {
     subscriptionUrl: STORE_KEYS.subUrl,
+    subscriptionUrlMirror: STORE_KEYS.subUrlMirror,
     format: STORE_KEYS.subFormat,
     refreshIntervalMin: STORE_KEYS.refreshIntervalMin,
     fetchTimeoutSec: STORE_KEYS.fetchTimeoutSec
@@ -76,25 +83,127 @@ async function setSettings(patch) {
   return { ok: true };
 }
 
-async function fetchSubscription() {
-  const { subscriptionUrl: url, subscriptionFormat: _f, fetchTimeoutSec } =
-    await chrome.storage.local.get([STORE_KEYS.subUrl, STORE_KEYS.subFormat, STORE_KEYS.fetchTimeoutSec]);
-  if (!url) throw new Error('ابتدا لینک سابسکریپشن را در تنظیمات وارد کنید');
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), (Number(fetchTimeoutSec) || 10) * 1000);
-  let text;
+/** ساخت rule DNR برای بازنویسی User-Agent فقط روی دامنهٔ سابسکریپشن */
+function buildUaRule(url) {
   try {
-    const res = await fetch(url, { signal: ctrl.signal, credentials: 'omit', redirect: 'follow' });
-    if (!res.ok) throw new Error(`دریافت سابسکریپشن ناموفق: HTTP ${res.status}`);
-    text = await res.text();
-  } finally { clearTimeout(t); }
+    const host = new URL(url).hostname;
+    return {
+      id: 1,
+      priority: 1,
+      action: {
+        type: 'modifyHeaders',
+        requestHeaders: [{ header: 'User-Agent', operation: 'set', value: UA_HEADER }]
+      },
+      condition: { requestDomains: [host], resourceTypes: ['xmlhttprequest'] }
+    };
+  } catch (_) { return null; }
+}
 
-  const servers = detectAndParse(text);
+/** تلاش برای دریافت با هدر User-Agent مستقیم؛ در MV3 معمولاً مسدود می‌شود */
+async function fetchWithUaHeader(url, timeoutSec) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutSec * 1000);
+  try {
+    return await fetch(url, {
+      signal: ctrl.signal,
+      credentials: 'omit',
+      redirect: 'follow',
+      headers: { 'User-Agent': UA_HEADER }
+    });
+  } finally { clearTimeout(t); }
+}
+
+/** fallback: فعال‌سازی موقت rule DNR برای بازنویسی UA روی دامنهٔ ساب */
+async function fetchWithDnrUa(url, timeoutSec) {
+  const rule = buildUaRule(url);
+  if (!rule) throw new Error('URL سابسکریپشن نامعتبر است');
+  await chrome.declarativeNetRequest.updateDynamicRules({
+    removeRuleIds: [1],
+    addRules: [rule]
+  });
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutSec * 1000);
+    try {
+      return await fetch(url, { signal: ctrl.signal, credentials: 'omit', redirect: 'follow' });
+    } finally {
+      clearTimeout(t);
+      await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [1] });
+    }
+  } catch (e) {
+    // حتماً rule را پاک کن حتی در خطا
+    try { await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [1] }); } catch (_) {}
+    throw e;
+  }
+}
+
+/** تشخیص HTML به‌جای فرمت مورد انتظار */
+function looksLikeHtml(text) {
+  return /^\s*<(!doctype|html)/i.test(text);
+}
+
+async function fetchOne(url, timeoutSec) {
+  // گام ۱: هدر UA مستقیم
+  let res;
+  let usedDnr = false;
+  try {
+    res = await fetchWithUaHeader(url, timeoutSec);
+  } catch (_) {
+    // گام ۲: fallback به DNR
+    usedDnr = true;
+    res = await fetchWithDnrUa(url, timeoutSec);
+  }
+  if (!res.ok) throw new Error(`دریافت سابسکریپشن ناموفق: HTTP ${res.status}`);
+  const text = await res.text();
+  return { text, usedDnr };
+}
+
+async function fetchSubscription() {
+  const s = await chrome.storage.local.get([
+    STORE_KEYS.subUrl, STORE_KEYS.subUrlMirror, STORE_KEYS.subFormat, STORE_KEYS.fetchTimeoutSec
+  ]);
+  const primary = s[STORE_KEYS.subUrl];
+  const mirror = s[STORE_KEYS.subUrlMirror];
+  if (!primary && !mirror) throw new Error('ابتدا لینک سابسکریپشن (یا mirror آن) را در تنظیمات وارد کنید');
+  const timeoutSec = Number(s[STORE_KEYS.fetchTimeoutSec]) || 10;
+
+  const attempts = [];
+  if (primary) attempts.push({ label: 'اصلی', url: primary });
+  if (mirror) attempts.push({ label: 'mirror', url: mirror });
+
+  let lastErr = null;
+  for (const a of attempts) {
+    try {
+      const { text, usedDnr } = await fetchOne(a.url, timeoutSec);
+      if (looksLikeHtml(text)) {
+        throw new Error('سرور به‌جای سابسکریپشن، صفحهٔ HTML برگرداند (User-Agent مرورگر). از mirror یا ورود دستی استفاده کنید.');
+      }
+      const servers = detectAndParse(text);
+      await chrome.storage.local.set({
+        [STORE_KEYS.servers]: servers,
+        [STORE_KEYS.lastFetchedAt]: Date.now()
+      });
+      return { ok: true, count: servers.length, servers, source: a.label, viaDnr: usedDnr };
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('دریافت سابسکریپشن ناموفق بود');
+}
+
+/** ورود دستی محتوای سابسکریپشن */
+async function importManual(text) {
+  const t = String(text || '').trim();
+  if (!t) throw new Error('محتوای ورودی خالی است');
+  if (looksLikeHtml(t)) {
+    throw new Error('محتوای ورودی HTML است، نه سابسکریپشن. متن Base64/URI/Clash/JSON را وارد کنید.');
+  }
+  const servers = detectAndParse(t);
   await chrome.storage.local.set({
     [STORE_KEYS.servers]: servers,
     [STORE_KEYS.lastFetchedAt]: Date.now()
   });
-  return { ok: true, count: servers.length, servers };
+  return { ok: true, count: servers.length, servers, source: 'manual' };
 }
 
 async function applyProxy(serverId) {
@@ -112,8 +221,6 @@ async function applyProxy(serverId) {
       bypassList: ['localhost', '127.0.0.1', '[::1]']
     }
   };
-  // احراز هویت پروکسی: chrome.proxy از onAuthRequested در webRequest پشتیبانی می‌کند؛
-  // اعتبارنامه‌ها به‌دلیل محدودیت MV3 و امنیت در این نسخه پشتیبانی نمی‌شوند.
   await chrome.proxy.settings.set({ value: config, scope: 'regular' });
   await chrome.storage.local.set({ [STORE_KEYS.selected]: serverId, [STORE_KEYS.proxyEnabled]: true });
   return { ok: true };
