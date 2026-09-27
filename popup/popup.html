@@ -11,7 +11,11 @@
   main { padding:12px 16px; }
   .status { font-size:12px; margin-bottom:10px; }
   .status.on { color:var(--ok); } .status.off { color:var(--muted); }
+  #localCoreBar { display:none; align-items:center; justify-content:space-between; gap:8px; background:#14532d; border:1px solid var(--ok); border-radius:8px; padding:6px 10px; margin-bottom:10px; font-size:11px; }
+  #localCoreBar.show { display:flex; }
+  #localCoreBar button { width:auto; padding:4px 10px; margin:0; font-size:11px; }
   button { width:100%; padding:10px; margin:4px 0; border:0; border-radius:8px; cursor:pointer; font-size:13px; }
+  button:disabled { opacity:0.5; cursor:not-allowed; }
   .primary { background:var(--accent); color:#0f172a; font-weight:700; }
   .danger { background:transparent; color:var(--err); border:1px solid var(--err); }
   .ghost { background:var(--card); color:var(--fg); }
@@ -21,6 +25,7 @@
   ul#servers li .meta { color:var(--muted); display:block; margin-top:2px; }
   .badge { display:inline-block; padding:1px 6px; border-radius:6px; font-size:10px; background:#334155; margin-inline-start:4px; }
   .badge.na { color:var(--err); }
+  .badge.core { color:var(--accent); }
   #err { color:var(--err); font-size:11px; min-height:14px; }
 </style>
 </head>
@@ -30,6 +35,10 @@
   <button id="btn-refresh" class="ghost" style="width:auto;padding:6px 10px;">به‌روزرسانی</button>
 </header>
 <main>
+  <div id="localCoreBar">
+    <span id="localCoreText"></span>
+    <button id="btn-disconnect-core" class="danger">قطع</button>
+  </div>
   <div id="proxy-status" class="status off">پروکسی: خاموش</div>
   <div id="err"></div>
   <button id="btn-toggle" class="primary">فعال‌سازی پروکسی</button>
