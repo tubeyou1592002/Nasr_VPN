@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Moha VPN</title>
+
+<link rel="stylesheet" href="popup.css">
+
+</head>
+
+
+<body>
+
+
+<div class="container">
+
+
+    <div class="header">
+
+
+        <div class="brand">
+
+
+            <div class="logo">
+                <img src="icons/icon48.png" alt="Moha VPN">
+            </div>
+
+
+            <div>
+
+                <div class="title">
+                    Moha VPN
+                </div>
+
+
+                <span id="status" class="status">
+                    Loading...
+                </span>
+
+
+            </div>
+
+
+        </div>
+
+
+
+        <button id="refresh" class="icon-button" title="Refresh servers">
+            <img src="icons/refresh.svg">
+        </button>
+
+    </div>
+
+
+
+    <div id="vpn-card" class="vpn-card disconnected">
+
+
+        <div id="vpn-status">
+            Disconnected
+        </div>
+
+
+    </div>
+
+
+
+    <div id="servers">
+
+
+        <div class="loading">
+            Loading servers...
+        </div>
+
+
+    </div>
+
+
+
+
+    <div class="actions">
+
+
+        <button id="auto-connect" class="auto-button">
+            <img src="icons/bolt.svg">
+            Fast Connect
+        </button>
+
+
+        <button id="connect" class="connect-button">
+            Connect
+        </button>
+
+
+        <button id="disconnect" class="disconnect-button" disabled>
+            Disconnect
+        </button>
+
+
+
+        <button id="settings" class="settings-button">
+           <img src="icons/settings.svg">
+            Settings
+        </button>
+
+
+    </div>
+
+
+
+    <div id="settings-panel" class="settings-panel" style="display:none;">
+
+
+        <div class="settings-title">
+            VPN Settings
+        </div>
+
+
+        <label class="setting-label">
+            Subscription URL
+        </label>
+
+
+        <input 
+            id="subscription-url"
+            class="setting-input"
+            type="text"
+        >
+
+
+
+        <label class="toggle-row">
+
+            <span>
+                Auto reconnect
+            </span>
+
+
+            <input
+                id="auto-reconnect-setting"
+                type="checkbox"
+                checked
+            >
+
+        </label>
+
+
+
+        <label class="setting-label">
+            Check interval (seconds)
+        </label>
+
+
+        <input
+            id="check-interval"
+            class="setting-input"
+            type="number"
+            value="30"
+        >
+
+
+
+        <button
+            id="save-settings"
+            class="save-button">
+
+            Save Settings
+
+        </button>
+
+
+
+        <div id="settings-status"></div>
+
+
+    </div>
+
+
+
+    <div class="footer">
+
+        Created By Parviz
+
+    </div>
+
+
+
+</div>
+
+
+<script src="popup.js"></script>
+
+
+</body>
+
+</html>

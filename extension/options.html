@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="UTF-8">
+
+<title>My VPN Settings</title>
+
+<style>
+
+body{
+    font-family: Arial, sans-serif;
+    width:400px;
+    padding:20px;
+}
+
+h2{
+    margin-bottom:20px;
+}
+
+
+label{
+    display:block;
+    margin-top:15px;
+}
+
+
+input{
+    width:100%;
+    padding:8px;
+    margin-top:5px;
+    box-sizing:border-box;
+}
+
+
+button{
+
+    margin-top:20px;
+
+    padding:10px 20px;
+
+    cursor:pointer;
+
+}
+
+
+#status{
+
+    margin-top:15px;
+
+    color:green;
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<h2>
+My VPN Settings
+</h2>
+
+
+<label>
+Subscription URL
+</label>
+
+
+<input
+    id="subscription"
+    type="text"
+    placeholder="https://..."
+>
+
+
+<label>
+
+<input
+    id="autoReconnect"
+    type="checkbox"
+>
+
+Enable Auto Reconnect
+
+</label>
+
+
+
+<label>
+
+Monitor interval (seconds)
+
+</label>
+
+
+<input
+    id="interval"
+    type="number"
+    value="30"
+    min="10"
+>
+
+
+
+<button id="save">
+Save Settings
+</button>
+
+
+<div id="status"></div>
+
+
+
+<script src="options.js"></script>
+
+
+</body>
+
+</html>

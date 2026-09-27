@@ -1,0 +1,44 @@
+{
+  "log": {
+    "level": "info"
+  },
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 2080
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "vless",
+      "tag": "proxy",
+      "server": "shahrivar.tubeyou1592002.workers.dev",
+      "server_port": 443,
+      "uuid": "728af809-baa4-45cb-8d43-abb9d734f0c8",
+      "tls": {
+        "enabled": true,
+        "server_name": "shahrivar.tubeyou1592002.workers.dev",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "shahrivar.tubeyou1592002.workers.dev"
+        }
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "final": "proxy"
+  }
+}
