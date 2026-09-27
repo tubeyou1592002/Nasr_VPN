@@ -14,16 +14,23 @@
   button { padding:10px 16px; border:0; border-radius:8px; cursor:pointer; font-size:13px; margin-top:12px; }
   .primary { background:var(--accent); color:#0f172a; font-weight:700; }
   .danger { background:transparent; color:var(--err); border:1px solid var(--err); }
+  .ghost { background:#334155; color:var(--fg); }
   #msg { font-size:12px; margin-top:8px; min-height:16px; }
   .hint { color:var(--muted); font-size:11px; line-height:1.8; }
+  .row { display:flex; gap:8px; margin-top:12px; }
+  .row button { margin-top:0; flex:1; }
 </style>
 </head>
 <body>
 <h1>⚙️ تنظیمات نصیر VPN</h1>
 
 <div class="card">
-  <label for="subUrl">لینک سابسکریپشن</label>
-  <input id="subUrl" type="url" placeholder="https://example.com/sub">
+  <label for="subUrl">لینک سابسکریپشن (ماسک‌شده نمایش داده می‌شود)</label>
+  <input id="subUrl" type="password" placeholder="https://example.com/sub" autocomplete="off">
+  <div class="row">
+    <button id="btn-reveal" class="ghost">نمایش لینک</button>
+    <button id="btn-clear-url" class="danger">حذف لینک</button>
+  </div>
   <label for="format">فرمت</label>
   <select id="format">
     <option value="auto">تشخیص خودکار</option>
@@ -40,12 +47,20 @@
 </div>
 
 <div class="card">
+  <strong>حریم خصوصی</strong>
+  <p class="hint">
+    • لینک سابسکریپشن (شامل توکن) ماسک‌شده نمایش داده می‌شود و فقط با «نمایش لینک» کامل دیده می‌شود.<br>
+    • «حذف لینک» آن را فوراً و امن از حافظهٔ افزونه پاک می‌کند.<br>
+    • توکن/اعتبارنامه‌ها در لاگ یا رابط نمایش داده نمی‌شوند.
+  </p>
+</div>
+
+<div class="card">
   <strong>محدودیت‌های فنی</strong>
   <p class="hint">
     • <code>chrome.proxy</code> فقط پروتکل‌های HTTP/HTTPS/SOCKS4/SOCKS5 را پشتیبانی می‌کند.<br>
-    • سرورهای VLESS/VMess/Trojan/Shadowsocks فقط شناسایی و ذخیره می‌شوند؛ برای اتصال به آن‌ها به کلاینت محلی سازگار (مانند هستهٔ v2ray/sing-box) نیاز دارید.<br>
-    • «تأخیر» نمایش‌داده‌شده زمان پاسخ HTTP است و معادل پینگ ICMP نیست.<br>
-    • اعتبارنامهٔ پروکسی با احراز هویت در این نسخه پشتیبانی نمی‌شود.
+    • سرورهای VLESS/VMess/Trojan/Shadowsocks فقط شناسایی و ذخیره می‌شوند؛ برای اتصال کلاینت محلی سازگار لازم است.<br>
+    • «تأخیر» نمایش‌داده‌شده زمان پاسخ HTTP است و معادل پینگ ICMP نیست.
   </p>
 </div>
 
