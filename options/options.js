@@ -11,6 +11,19 @@ function maskUrl(url) {
   }
 }
 
+/** اعتبارسنجی سمت کاربر پیش از ارسال به background */
+function validateManualInput(text) {
+  const t = String(text || '').trim();
+  if (!t) return { error: 'محتوای ورودی خالی است' };
+  if (/^\s*<(!doctype|html)/i.test(t)) {
+    return { error: 'محتوای ورودی HTML است، نه سابسکریپشن. متن Base64/URI/Clash/JSON را وارد کنید.', type: 'HTML_RESPONSE' };
+  }
+  if (!t.includes('\n') && t.length < 2000 && /^https?:\/\//i.test(t)) {
+    return { error: 'این یک URL است، نه محتوای سابسکریپشن — محتوای Base64 یا متن کانفیگ‌ها را پیست کنید.', type: 'MANUAL_IS_URL' };
+  }
+  return null;
+}
+
 let revealed = false, revealedMirror = false;
 let savedUrl = '', savedMirror = '';
 
@@ -104,6 +117,13 @@ $('save').addEventListener('click', async () => {
 
 $('btn-import').addEventListener('click', async () => {
   const text = $('manualText').value;
+  // اعتبارسنجی سریع سمت کاربر (قبل از رفت‌وبرگشت به background)
+  const v = validateManualInput(text);
+  if (v) {
+    $('msg').textContent = 'خطا: ' + v.error;
+    $('msg').style.color = 'var(--err)';
+    return;
+  }
   const r = await new Promise(res => chrome.runtime.sendMessage({ type: 'IMPORT_MANUAL', text }, res));
   if (r && r.ok) {
     $('msg').textContent = `ورود دستی موفق: ${r.count} سرور ذخیره شد`;
