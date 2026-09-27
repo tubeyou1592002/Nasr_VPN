@@ -1,9 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Nasr VPN - Proxy Subscription Manager",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "دریافت و مدیریت سابسکریپشن‌های پروکسی، نمایش سرورها و تأخیر، انتخاب پروکسی سازگار",
-  "default_locale": "fa",
   "minimum_chrome_version": "116",
   "permissions": ["proxy", "storage", "alarms"],
   "host_permissions": ["<all_urls>"],
@@ -15,8 +14,5 @@
     "default_popup": "popup/popup.html",
     "default_title": "Nasr VPN"
   },
-  "options_page": "options/options.html",
-  "icons": {
-    "128": "icons/icon128.png"
-  }
+  "options_page": "options/options.html"
 }
