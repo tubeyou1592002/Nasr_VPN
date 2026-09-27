@@ -8,6 +8,7 @@
   * { box-sizing:border-box; font-family:Vazirmatn, Tahoma, sans-serif; }
   body { background:var(--bg); color:var(--fg); margin:0; padding:24px; max-width:640px; margin-inline:auto; }
   h1 { font-size:20px; }
+  h2 { font-size:16px; margin:0 0 8px; }
   .card { background:var(--card); border-radius:12px; padding:16px; margin-bottom:12px; }
   label { display:block; font-size:13px; margin:10px 0 4px; }
   input, select, textarea { width:100%; padding:10px; border-radius:8px; border:1px solid #334155; background:#0b1220; color:var(--fg); font-size:13px; }
@@ -16,16 +17,51 @@
   .primary { background:var(--accent); color:#0f172a; font-weight:700; }
   .danger { background:transparent; color:var(--err); border:1px solid var(--err); }
   .ghost { background:#334155; color:var(--fg); }
-  #msg { font-size:12px; margin-top:8px; min-height:16px; }
+  .err { color:var(--err); font-size:12px; margin-top:8px; min-height:16px; }
+  .msg { font-size:12px; margin-top:8px; min-height:16px; }
   .hint { color:var(--muted); font-size:11px; line-height:1.8; }
   .row { display:flex; gap:8px; margin-top:12px; }
   .row button { margin-top:0; flex:1; }
+  .grid3 { display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; }
+  #localCoreStatus.on { color:var(--ok); }
+  #localCoreStatus.off { color:var(--muted); }
+  #localCoreStatus.busy { color:var(--accent); }
 </style>
 </head>
 <body>
 <h1>⚙️ تنظیمات نصیر VPN</h1>
 
 <div class="card">
+  <h2>🔗 اتصال به هستهٔ محلی</h2>
+  <div class="hint">برای استفاده از سرورهای VLESS/VMess/Trojan/Shadowsocks، ابتدا یک هستهٔ محلی مثل Xray یا sing-box را روی سیستم اجرا کنید (مثلاً v2rayN روی پورت 10809) و آدرس HTTP/SOCKS آن را اینجا وارد کنید.</div>
+  <div class="grid3">
+    <div>
+      <label for="localCoreHost">میزبان</label>
+      <input id="localCoreHost" type="text" value="127.0.0.1" autocomplete="off">
+    </div>
+    <div>
+      <label for="localCorePort">پورت</label>
+      <input id="localCorePort" type="number" min="1" max="65535" value="10808">
+    </div>
+    <div>
+      <label for="localCoreScheme">طرح</label>
+      <select id="localCoreScheme">
+        <option value="http">HTTP</option>
+        <option value="https">HTTPS</option>
+        <option value="socks5">SOCKS5</option>
+      </select>
+    </div>
+  </div>
+  <div class="row">
+    <button id="btn-local-connect" class="primary">اتصال به هستهٔ محلی</button>
+    <button id="btn-local-disconnect" class="danger">قطع اتصال</button>
+  </div>
+  <div id="localCoreStatus" class="msg off">قطع</div>
+  <div id="localCoreError" class="err"></div>
+</div>
+
+<div class="card">
+  <h2>📡 سابسکریپشن</h2>
   <label for="subUrl">لینک سابسکریپشن اصلی (ماسک‌شده)</label>
   <input id="subUrl" type="password" placeholder="https://example.com/sub" autocomplete="off">
   <div class="row">
@@ -52,30 +88,32 @@
   <label for="timeout">مهلت دریافت (ثانیه)</label>
   <input id="timeout" type="number" min="3" max="60" value="10">
   <button id="save" class="primary">ذخیره</button>
-  <div id="msg"></div>
+  <div id="settingsError" class="err"></div>
 </div>
 
 <div class="card">
-  <strong>ورود دستی سابسکریپشن</strong>
-  <p class="hint">اگر سرور با User-Agent مرورگر، صفحهٔ HTML برگرداند، محتوای ساب (Base64/URI/Clash/JSON) را اینجا بچسبانید.</p>
+  <h2>📥 ورود دستی سابسکریپشن</h2>
+  <p class="hint">اگر سرور با User-Agent مرورگر، صفحهٔ HTML برگرداند، محتوای ساب (Base64/URI/Clash/JSON) را اینجا بچسبانید. پس از ذخیرهٔ موفق، محتوا از کادر پاک می‌شود.</p>
   <textarea id="manualText" placeholder="vless://... یا محتوای Base64 یا YAML یا JSON"></textarea>
   <button id="btn-import" class="primary">پردازش و ذخیره</button>
+  <div id="manualError" class="err"></div>
 </div>
 
 <div class="card">
-  <strong>حریم خصوصی</strong>
+  <h2>🔒 حریم خصوصی</h2>
   <p class="hint">
     • لینک‌های سابسکریپشن (شامل توکن) ماسک‌شده نمایش داده می‌شوند و فقط با «نمایش لینک» کامل دیده می‌شوند.<br>
     • «حذف لینک» و «حذف mirror» کلید مربوطه را فوراً و امن از حافظهٔ افزونه پاک می‌کنند.<br>
+    • تنظیمات هستهٔ محلی فقط host/port/scheme را ذخیره می‌کند — هیچ اعتبارنامه‌ای.<br>
     • توکن/اعتبارنامه‌ها در لاگ یا رابط نمایش داده نمی‌شوند.
   </p>
 </div>
 
 <div class="card">
-  <strong>محدودیت‌های فنی</strong>
+  <h2>⚠️ محدودیت‌های فنی</h2>
   <p class="hint">
     • <code>chrome.proxy</code> فقط پروتکل‌های HTTP/HTTPS/SOCKS4/SOCKS5 را پشتیبانی می‌کند.<br>
-    • سرورهای VLESS/VMess/Trojan/Shadowsocks فقط شناسایی و ذخیره می‌شوند؛ برای اتصال کلاینت محلی سازگار لازم است.<br>
+    • سرورهای VLESS/VMess/Trojan/Shadowsocks از طریق هستهٔ محلی (Xray/sing-box) اجرا می‌شوند — بخش «اتصال به هستهٔ محلی» در بالای همین صفحه.<br>
     • «تأخیر» نمایش‌داده‌شده زمان پاسخ HTTP است و معادل پینگ ICMP نیست.
   </p>
 </div>
